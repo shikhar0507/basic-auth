@@ -1,0 +1,17 @@
+<html>
+  <head>
+    <title>{{.Title}}</title>
+
+    <link rel="icon" type="image/x-icon" href="./public/favicon.ico"/> -
+  </head>
+  <body>
+    <h1>{{.Headline}}</h1>
+    <form action="/login" method="post">
+      <input requried placeholder="username" name="username" />
+      <input required type="password" placeholder="password" name="password" />
+      
+      <input type="submit" value="Submit">
+    </form>
+  </body>
+
+</html>

@@ -1,0 +1,17 @@
+<html>
+  <head>
+    <title>{{.Title}}</title>
+
+    <link rel="icon" type="image/x-icon" href="./public/favicon.ico"/> -
+  </head>
+  <body>
+    <h1>{{.Headline}}</h1>
+    <ul>
+      {{range $val := .Refs}}
+          <li>{{$val}}</li>
+      {{end}}
+    </ul>
+
+  </body>
+
+</html>
