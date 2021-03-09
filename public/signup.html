@@ -27,7 +27,7 @@
             throw new Error(res.status)
         }).then((res)=>{
             alert("User created")
-
+            window.location.href = './login'
         }).catch(err=>{
             if (Number(err.message) == 409) {
                 alert("Account already  exists! Redirecting")
