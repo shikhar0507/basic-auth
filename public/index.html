@@ -8,30 +8,12 @@
     <link rel="icon" type="image/x-icon" href="./favicon.ico"/> -
   </head>
   <body>
-    {{if .Login}}
-      <div>
-        <input required placeholder="username" id="name" />
-        <input required type="password" placeholder="password"  id="psswd"/>
-        <button id="submit">Submit</button>
-      </div>
-    {{end}}
+
     <ul>
       {{range $val := .Activities}}
           <li>{{$val}}</li>
       {{end}}
     </ul>
-   <script>
 
-    document.getElementById('submit').addEventListener('click',()=>{
-      const body  = JSON.stringify({
-        username : document.getElementById("name").value,
-        psswd : document.getElementById("psswd").value
-      })
-
-      fetch("http://localhost:8080/signup" ,{method:"POST",headers:{"Content-Type":"application/json"},body:body}).then(res=>{
-        return res.json()
-      }).then(console.log).catch(console.error)
-    })
-   </script>
   </body>
 </html>

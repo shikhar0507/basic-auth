@@ -10,30 +10,50 @@ import (
 )
 
 
-var errorPage *template.Template
-var requestedPage *template.Template
+var errorPage,loginPage,signupPage,homePage *template.Template
+//var loginPage *template.Template
+//var signupPage *template.Template
+//var homePage *template.Template
+
 var parseErr error
 func init() {
 	// pre parse the templates
 	fmt.Println("Init loader")
-	requestedPage ,parseErr = template.ParseFiles("./public/index.html")
+	homePage ,parseErr = template.ParseFiles("./public/index.html")
 	errorPage, parseErr = template.ParseFiles("./public/404.html")
+	loginPage ,parseErr = template.ParseFiles("./public/login.html")
+	signupPage ,parseErr = template.ParseFiles("./public/signup.html")
+
 	if parseErr != nil {
 		log.Fatal(parseErr)
 	}
 }
 
 func LoadPage(writer http.ResponseWriter, filename string, data pageStruct.PageData) error  {
-	page := requestedPage
-	if filename == "404" {
+	var page *template.Template
+	switch filename {
+	case "/":
+		page = homePage
+		break
+	case "/login":
+		page = loginPage
+		break
+	case "/signup":
+		page = signupPage
+		break
+	case "404":
 		page = errorPage
+		break
 	}
 	fmt.Println(data)
+	if page == nil {
+		return errors.New("template-not-found")
+	}
 	err := page.Execute(writer,data)
+
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("template execute",err)
 		return err
 	}
-
-	return errors.New("template-not-found")
+	return nil
 }

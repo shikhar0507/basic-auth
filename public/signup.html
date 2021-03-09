@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Signup</title>
+</head>
+<body>
+<div>
+    <h1>Signup</h1>
+    <input required placeholder="username" id="name" />
+    <input required type="password" placeholder="password"  id="psswd"/>
+    <button id="submit">Submit</button>
+</div>
+<script>
+
+    document.getElementById('submit').addEventListener('click',()=>{
+        const body  = JSON.stringify({
+            username : document.getElementById("name").value,
+            psswd : document.getElementById("psswd").value
+        })
+
+        fetch("http://localhost:8080/signup-user" ,{method:"POST",headers:{"Content-Type":"application/json"},body:body}).then(res=>{
+            if(res.ok) {
+                return res.json()
+            }
+            throw new Error(res.status)
+        }).then((res)=>{
+            alert("User created")
+
+        }).catch(err=>{
+            if (Number(err.message) == 409) {
+                alert("Account already  exists! Redirecting")
+                setTimeout(()=>{
+                    window.location.href = './login'
+                },500)
+            }
+        })
+    })
+</script>
+</body>
+</html>

@@ -5,6 +5,7 @@ import (
 	"auth/pageStruct"
 	"auth/requestDecoder"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"github.com/jackc/pgx/v4/pgxpool"
@@ -16,6 +17,10 @@ import (
 
 var db *pgxpool.Pool
 
+type AuthBody struct {
+	Username string
+	Psswd string
+}
 func main() {
 
 
@@ -28,11 +33,11 @@ func main() {
 	defer db.Close()
 
 	http.HandleFunc("/",handleSessionState)
-	http.HandleFunc("/login",handleSessionState)
-
-	http.HandleFunc("/signup",handleSignup)
+	http.HandleFunc("/login",login)
+	http.HandleFunc("/signup",signup)
+	http.HandleFunc("/signup-user",handleSignup)
+	http.HandleFunc("/login-user",handleSignin)
 	http.HandleFunc("/favicon.ico", faviconHandler)
-
 	log.Fatal(http.ListenAndServe("127.0.0.1:8080",nil))
 }
 
@@ -41,32 +46,43 @@ func faviconHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleSessionState (w http.ResponseWriter, r *http.Request) {
+
 	fmt.Println(r.URL.Path)
 	_, err := r.Cookie("session")
-	paths := map[string]func(w2 http.ResponseWriter,r2 *http.Request) {
-		"/":homePage,
-		"/login":login,
-	}
+	//paths := map[string]func(w2 http.ResponseWriter,r2 *http.Request) {
+	//	"/":homePage,
+	//	"/login":login,
+	//	"/signup":signup,
+	//}
 	if err != nil {
+		if r.URL.Path == "/signup" {
+			fmt.Println("load signup")
+			signup(w,r)
+			return
+		}
+
 		if r.URL.Path == "/login" {
+			fmt.Println("load login")
 			login(w,r)
 			return
 		}
 		fmt.Println("redirecting",err)
-		http.Redirect(w,r,"/login",302)
+		http.Redirect(w,r,"/signup",302)
 		return
 	}
-	if r.URL.Path == "/login" {
-		http.Redirect(w,r,"/",302)
-		return
-	}
-
-	if paths[r.URL.Path] != nil {
-		paths[r.URL.Path](w,r)
-		return
-	}
-	errorPage :=  pageStruct.PageData{Title: "404"}
-	pageLoader.LoadPage(w,"404",errorPage)
+	//fmt.Println("Found session")
+	//if r.URL.Path == "/login" || r.URL.Path == "/signup" {
+	//
+	//	http.Redirect(w,r,"/",302)
+	//	return
+	//}
+	//
+	//if paths[r.URL.Path] != nil {
+	//	paths[r.URL.Path](w,r)
+	//	return
+	//}
+	//errorPage :=  pageStruct.PageData{Title: "404"}
+	//pageLoader.LoadPage(w,"404",errorPage)
 }
 
 
@@ -106,16 +122,54 @@ func homePage(w http.ResponseWriter, r *http.Request) {
 	pageLoader.LoadPage(w,"index",homePageData)
 }
 
+
+func handleSignin(w http.ResponseWriter,r *http.Request) {
+	var signinBody AuthBody
+	result := requestDecoder.Decode(w,r,&signinBody)
+	if signinBody.Username == "" {
+		http.Error(w,"Username cannot be empty",http.StatusBadRequest)
+		return
+	}
+	if signinBody.Psswd == "" {
+		http.Error(w,"Password cannot be empty",http.StatusBadRequest)
+		return
+	}
+	if result.Status != 200 {
+		http.Error(w,result.Message,result.Status)
+		return
+	}
+	if userExists(signinBody.Username,signinBody.Psswd) == false {
+		fmt.Println("User does not exist")
+		result.Message = "Account does not exist"
+		result.Status = http.StatusNotFound
+		r,err := json.Marshal(result)
+		w.WriteHeader(http.StatusNotFound)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Fprint(w,string(r))
+		return
+	}
+	uuid,err := generateUUID()
+	if err != nil {
+		http.Error(w,"Internal Server error",http.StatusInternalServerError)
+		return
+	}
+	_,err = db.Exec(context.Background(),"insert into sessions values($1,$2)",signinBody.Username,uuid)
+
+	//fmt.Print("Failed to create user")
+	cookie := http.Cookie{Name:"session",Value:uuid}
+	http.SetCookie(w,&cookie)
+	//http.Redirect(w,r,"/",302)
+
+}
+
 // 1) parse the request and check if format matches
 // 2) check if user exists
-// 3) if exists then reject else create new user and set cookie
+// 3) if exists then reject else create new user
 
 func handleSignup(w http.ResponseWriter,r *http.Request) {
 
-	type AuthBody struct {
-		Username string
-		Psswd string
-	}
 	var signupBody AuthBody
 	//var result requestDecoder.Result
 
@@ -131,11 +185,17 @@ func handleSignup(w http.ResponseWriter,r *http.Request) {
 	}
 	fmt.Println("check for  user")
 	if userExists(signupBody.Username,signupBody.Psswd) {
-		fmt.Println("user exist")
-		http.Error(w,"Account already exist!. Please login",http.StatusConflict)
+
+		result.Message = "Account already  exist"
+		result.Status = http.StatusConflict
+		r,err := json.Marshal(result)
+		w.WriteHeader(http.StatusConflict)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Fprint(w,string(r))
 		return
 	}
-	fmt.Println(result)
 	if result.Status == 200 {
 		// if request is successfully parsed
 		err := createUser(signupBody.Username,signupBody.Psswd)
@@ -148,7 +208,8 @@ func handleSignup(w http.ResponseWriter,r *http.Request) {
 			http.Error(w,"Error creating success response",http.StatusInternalServerError)
 			return
 		}
-		fmt.Fprint(w,string(successResponse))
+		fmt.Fprintf(w,string(successResponse))
+
 		return
 	}
 	fmt.Println("error",result)
@@ -165,16 +226,17 @@ func getSessionCookie (r *http.Request) string {
 }
 
 func login(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("Login page")
-
-
 	loginData := pageStruct.PageData{Title: "Login",Login: true}
-	pageLoader.LoadPage(w,"login",loginData)
+	pageLoader.LoadPage(w,"/login",loginData)
+}
 
-	//fmt.Print("Failed to create user")
-	//cookie := http.Cookie{Name:"session",Value:username}
-	//http.SetCookie(w,&cookie)
-	//http.Redirect(w,r,"/",302)
+func signup(w http.ResponseWriter, r *http.Request) {
+	loginData := pageStruct.PageData{Title: "Signup",Login: true}
+	err := pageLoader.LoadPage(w,"/signup",loginData)
+	if err != nil {
+		log.Fatal(err)
+	}
+	//fmt.Fprint(w,"Hello world")
 }
 
 
@@ -195,6 +257,7 @@ func createUser (username string,psswd string) error {
 	if err != nil {
 		return err
 	}
+	fmt.Println("hash",string(hash))
 	_,err = db.Exec(context.Background(), "insert into auth values($1,$2)",username,hash)
 	if err != nil {
 		fmt.Println(err)
@@ -205,24 +268,31 @@ func createUser (username string,psswd string) error {
 
 }
 
+func generateUUID () (string,error) {
+	b := make([]byte,16)
+	_,err:= rand.Read(b)
+	if err != nil {
+		return "",err
+	}
+	return fmt.Sprintf("%x-%x-%x-%x-%x",b[0:4],b[4:6],b[6:8],b[10:]),nil
+}
+
 func userExists (username string,psswd string) bool {
 	var savedUsername string;
-	hash , err := generatePsswdHash(psswd)
-	fmt.Println("hash",hash)
+	var savedHash string;
+	err := db.QueryRow(context.Background(),"select * from auth where username=$1",username).Scan(&savedUsername,&savedHash)
 	if err != nil {
-		fmt.Println(err)
 		return false
 	}
-	err = db.QueryRow(context.Background(),"select * from auth where username=$1 and hash=$2",username,hash).Scan(&savedUsername)
-	fmt.Println(savedUsername)
-	if err != nil {
-		fmt.Println(err)
+	fmt.Println(savedUsername,savedHash)
+
+	er := bcrypt.CompareHashAndPassword([]byte(savedHash),[]byte(psswd))
+	if er != nil {
 		return false
 	}
-	if savedUsername != "" {
-		return true
-	}
-	return false
+	fmt.Println("isSame")
+	return true
+
 }
 
 
