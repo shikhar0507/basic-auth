@@ -35,8 +35,12 @@ func main() {
 	http.HandleFunc("/",handleSessionState)
 	http.HandleFunc("/login",login)
 	http.HandleFunc("/signup",signup)
+
+	//api
 	http.HandleFunc("/signup-user",handleSignup)
 	http.HandleFunc("/login-user",handleSignin)
+	http.HandleFunc("/logout",handleLogout)
+
 	http.HandleFunc("/favicon.ico", faviconHandler)
 	log.Fatal(http.ListenAndServe("127.0.0.1:8080",nil))
 }
@@ -47,7 +51,6 @@ func faviconHandler(w http.ResponseWriter, r *http.Request) {
 
 func handleSessionState (w http.ResponseWriter, r *http.Request) {
 
-	fmt.Println(r.URL.Path)
 	_, err := r.Cookie("session")
 
 	if err != nil {
@@ -67,21 +70,17 @@ func handleSessionState (w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Println("Found session cookie")
-	sessionId := getSessionCookie(r)
-	var sessionResult string
-	var sessionUsername string
-	err = db.QueryRow(context.Background(),"select * from sessions where sessionid=$1",sessionId).Scan(&sessionUsername,&sessionResult)
+	sessionUsername,_,err := getSession(r)
 	if err != nil {
 		fmt.Println(err)
 		http.Redirect(w,r,"/login",http.StatusNotFound)
 	}
-	fmt.Println(sessionUsername,sessionResult)
 
 	paths := map[string]func(w2 http.ResponseWriter,r2 *http.Request,username string) {
 		"/":homePage,
 		"/login":homePage,
 		"/signup":homePage,
+
 	}
 	if paths[r.URL.Path] != nil {
 		paths[r.URL.Path](w,r,sessionUsername)
@@ -91,6 +90,17 @@ func handleSessionState (w http.ResponseWriter, r *http.Request) {
 	pageLoader.LoadPage(w,"404",errorPage)
 }
 
+
+func getSession(r *http.Request) (string,string,error) {
+	sessionId := getSessionCookie(r)
+	var sessionResult string
+	var sessionUsername string
+	err := db.QueryRow(context.Background(),"select * from sessions where sessionid=$1",sessionId).Scan(&sessionUsername,&sessionResult)
+	if err != nil {
+		return "", "", err
+	}
+	return sessionUsername,sessionResult,nil
+}
 
 func homePage(w http.ResponseWriter, r *http.Request,username string) {
 
@@ -180,6 +190,37 @@ func handleSignin(w http.ResponseWriter,r *http.Request) {
 	fmt.Fprint(w,string(success))
 
 
+}
+
+func handleLogout(w http.ResponseWriter, r *http.Request) {
+	uname,uid,err := getSession(r)
+	fmt.Println("logout")
+	if err != nil {
+		log.Fatal(err)
+		http.Error(w,"Error logging out",http.StatusInternalServerError)
+		return
+	}
+	_,err = db.Exec(context.Background(),"delete from sessions where username=$1 AND sessionid=$2",uname,uid)
+	if err != nil {
+		log.Fatal(err)
+
+		http.Error(w,"Error logging out",http.StatusInternalServerError)
+		return
+	}
+	coo,err := r.Cookie("session")
+	coo.MaxAge = -1
+	coo.Value = ""
+	http.SetCookie(w,coo)
+	type Logout struct {
+		 Message string
+		 Status int
+	}
+	var logout Logout
+	success ,err := json.Marshal(&logout)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Fprint(w,string(success))
 }
 
 // 1) parse the request and check if format matches

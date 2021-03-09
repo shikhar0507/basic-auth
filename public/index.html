@@ -8,7 +8,7 @@
     <link rel="icon" type="image/x-icon" href="./favicon.ico"/> -
   </head>
   <body>
-
+    <button id="logout">Logout</button>
     <ul>
       {{range $val := .Activities}}
           <li>{{$val}}</li>
@@ -16,4 +16,15 @@
     </ul>
 
   </body>
+<script>
+  document.getElementById("logout").addEventListener('click',()=>{
+    fetch("http://localhost:8080/logout",{method:"DELETE",body:null}).then(res=>{
+      return res.json()
+    }).then(()=>{
+      window.location.href = './login'
+    }).catch(err=>{
+      alert(err.message)
+    })
+  })
+</script>
 </html>
