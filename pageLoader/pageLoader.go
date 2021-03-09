@@ -45,7 +45,6 @@ func LoadPage(writer http.ResponseWriter, filename string, data pageStruct.PageD
 		page = errorPage
 		break
 	}
-	fmt.Println(data)
 	if page == nil {
 		return errors.New("template-not-found")
 	}

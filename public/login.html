@@ -25,7 +25,7 @@
             }
            throw new Error(res.status)
         }).then((response)=>{
-            console.log("res",response)
+            window.location.href = './'
         }).catch(err=>{
            if (Number(err.message) == 404) {
                 alert("Account does not exists! Redirecting")

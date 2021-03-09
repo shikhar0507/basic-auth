@@ -49,11 +49,7 @@ func handleSessionState (w http.ResponseWriter, r *http.Request) {
 
 	fmt.Println(r.URL.Path)
 	_, err := r.Cookie("session")
-	//paths := map[string]func(w2 http.ResponseWriter,r2 *http.Request) {
-	//	"/":homePage,
-	//	"/login":login,
-	//	"/signup":signup,
-	//}
+
 	if err != nil {
 		if r.URL.Path == "/signup" {
 			fmt.Println("load signup")
@@ -70,35 +66,46 @@ func handleSessionState (w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w,r,"/signup",302)
 		return
 	}
-	//fmt.Println("Found session")
-	//if r.URL.Path == "/login" || r.URL.Path == "/signup" {
-	//
-	//	http.Redirect(w,r,"/",302)
-	//	return
-	//}
-	//
-	//if paths[r.URL.Path] != nil {
-	//	paths[r.URL.Path](w,r)
-	//	return
-	//}
-	//errorPage :=  pageStruct.PageData{Title: "404"}
-	//pageLoader.LoadPage(w,"404",errorPage)
+
+	fmt.Println("Found session cookie")
+	sessionId := getSessionCookie(r)
+	var sessionResult string
+	var sessionUsername string
+	err = db.QueryRow(context.Background(),"select * from sessions where sessionid=$1",sessionId).Scan(&sessionUsername,&sessionResult)
+	if err != nil {
+		fmt.Println(err)
+		http.Redirect(w,r,"/login",http.StatusNotFound)
+	}
+	fmt.Println(sessionUsername,sessionResult)
+
+	paths := map[string]func(w2 http.ResponseWriter,r2 *http.Request,username string) {
+		"/":homePage,
+		"/login":homePage,
+		"/signup":homePage,
+	}
+	if paths[r.URL.Path] != nil {
+		paths[r.URL.Path](w,r,sessionUsername)
+		return
+	}
+	errorPage :=  pageStruct.PageData{Title: "404"}
+	pageLoader.LoadPage(w,"404",errorPage)
 }
 
 
-func homePage(w http.ResponseWriter, r *http.Request) {
-	username,cooErr := r.Cookie("session")
-	if cooErr != nil {
-		fmt.Println("failed to read username",cooErr)
+func homePage(w http.ResponseWriter, r *http.Request,username string) {
+
+	fmt.Println(username)
+	if username == "" {
+		panic("empty username")
 		return
 	}
-	_,updateErr := db.Exec(context.Background(),"insert into agents values($1,$2)",username.Value, r.UserAgent())
-
+	_,updateErr := db.Exec(context.Background(),"insert into agents values($1,$2)",username, r.UserAgent())
+	//
 	if updateErr != nil {fmt.Println(updateErr)}
-
+	//
 	var refs []string
-	useragents ,agentsErr := db.Query(context.Background(),"SELECT * from agents where username=$1",username.Value)
-
+	useragents ,agentsErr := db.Query(context.Background(),"SELECT * from agents where username=$1",username)
+	//
 	defer useragents.Close()
 	type Agent struct {
 		agent string
@@ -115,11 +122,11 @@ func homePage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if useragents.Err() != nil {
+		fmt.Println("agentErr",useragents.Err().Error())
 
 	}
-
 	homePageData := pageStruct.PageData{Title: "Home",Activities: refs}
-	pageLoader.LoadPage(w,"index",homePageData)
+	pageLoader.LoadPage(w,"/",homePageData)
 }
 
 
@@ -156,11 +163,22 @@ func handleSignin(w http.ResponseWriter,r *http.Request) {
 		return
 	}
 	_,err = db.Exec(context.Background(),"insert into sessions values($1,$2)",signinBody.Username,uuid)
-
+	if err != nil {
+		fmt.Println(err)
+		http.Error(w,"Internal Server error",http.StatusInternalServerError)
+		return
+	}
 	//fmt.Print("Failed to create user")
 	cookie := http.Cookie{Name:"session",Value:uuid}
 	http.SetCookie(w,&cookie)
-	//http.Redirect(w,r,"/",302)
+	result.Message = "Login successfull"
+	success, er := json.Marshal(result)
+	if er != nil {
+		log.Fatal(er)
+	}
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w,string(success))
+
 
 }
 
@@ -274,7 +292,7 @@ func generateUUID () (string,error) {
 	if err != nil {
 		return "",err
 	}
-	return fmt.Sprintf("%x-%x-%x-%x-%x",b[0:4],b[4:6],b[6:8],b[10:]),nil
+	return fmt.Sprintf("%x-%x-%x-%x-%x",b[0:4],b[4:6],b[6:8],b[8:10],b[10:]),nil
 }
 
 func userExists (username string,psswd string) bool {
