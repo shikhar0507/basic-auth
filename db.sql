@@ -50,7 +50,9 @@ ALTER TABLE public.auth OWNER TO xanadu;
 
 CREATE TABLE public.domains (
     origin character varying(50) NOT NULL,
-    url character varying(80)
+    url character varying(80),
+    title character varying (100),
+    time timestamp timestamp with time zone
 );
 
 

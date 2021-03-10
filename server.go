@@ -13,6 +13,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 )
 
 var db *pgxpool.Pool
@@ -40,7 +41,7 @@ func main() {
 	http.HandleFunc("/signup-user",handleSignup)
 	http.HandleFunc("/login-user",handleSignin)
 	http.HandleFunc("/logout",handleLogout)
-
+	http.HandleFunc("/history",handleHistory)
 	http.HandleFunc("/favicon.ico", faviconHandler)
 	log.Fatal(http.ListenAndServe("127.0.0.1:8080",nil))
 }
@@ -188,6 +189,30 @@ func handleSignin(w http.ResponseWriter,r *http.Request) {
 	}
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprint(w,string(success))
+
+
+}
+
+func handleHistory(w http.ResponseWriter, r *http.Request) {
+	type History struct {
+		Host string
+		Url string
+		Time time.Time
+		Title string
+	}
+
+	var history History
+	history.Time = time.Now()
+
+	requestResult := requestDecoder.Decode(w,r,&history)
+	if requestResult.Status != 200 {
+		fmt.Fprintf(w,requestResult.Message,requestResult.Status)
+		return
+	}
+	if history.Host == "" || history.Url == "" {
+		fmt.Fprintf(w,"Both host and url are required",http.StatusBadRequest)
+		return
+	}
 
 
 }
