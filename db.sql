@@ -20,17 +20,7 @@ SET default_tablespace = '';
 
 SET default_table_access_method = heap;
 
---
--- Name: agents; Type: TABLE; Schema: public; Owner: xanadu
---
 
-CREATE TABLE public.agents (
-    username character varying(200),
-    agent character varying(200)
-);
-
-
-ALTER TABLE public.agents OWNER TO xanadu;
 
 --
 -- Name: auth; Type: TABLE; Schema: public; Owner: xanadu
@@ -50,13 +40,21 @@ ALTER TABLE public.auth OWNER TO xanadu;
 
 CREATE TABLE public.domains (
     origin character varying(50) NOT NULL,
-    url character varying(80),
-    title character varying (100),
-    time timestamp timestamp with time zone
+    url character varying(200),
 );
-
-
 ALTER TABLE public.domains OWNER TO xanadu;
+
+--
+-- Name: history;Type:Table;Schema : public;Owner: xanadu
+--
+
+CREATE TABLE history (
+    username character varying(20),
+    time timestamp  with time,
+    title character varying(100),
+    url character varying(200),
+)
+ALTER TABLE public.history OWNER TO xanadu;
 
 --
 -- Name: sessions; Type: TABLE; Schema: public; Owner: xanadu
